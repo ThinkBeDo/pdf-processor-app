@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Processor - Merge & DocuSign Splitter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(45deg, #2c3e50, #3498db);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 40px;
+            justify-content: center;
+        }
+
+        .mode-btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+            color: #333;
+            border: 2px solid #e9ecef;
+        }
+
+        .mode-btn.active {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border-color: transparent;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .section {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .upload-zone {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 60px 20px;
+            text-align: center;
+            background: #f8f9ff;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            margin-bottom: 30px;
+        }
+
+        .upload-zone:hover {
+            border-color: #764ba2;
+            background: #f0f4ff;
+            transform: translateY(-2px);
+        }
+
+        .upload-zone.dragover {
+            border-color: #28a745;
+            background: #f0fff4;
+        }
+
+        .upload-icon {
+            font-size: 4rem;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .upload-text {
+            font-size: 1.3rem;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .upload-subtext {
+            color: #666;
+            font-size: 1rem;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-list {
+            margin-top: 30px;
+        }
+
+        .file-item {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .file-item:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+
+        .file-info {
+            flex: 1;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .file-size {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .remove-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 5px 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .remove-btn:hover {
+            background: #c82333;
+            transform: scale(1.05);
+        }
+
+        .process-btn {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 30px;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .process-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(40, 167, 69, 0.3);
+        }
+
+        .process-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            display: none;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            margin-top: 30px;
+        }
+
+        .results.show {
+            display: block;
+        }
+
+        .download-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 12px 25px;
+            cursor: pointer;
+            margin: 10px 10px 10px 0;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .info-box h3 {
+            color: #0056b3;
+            margin-bottom: 10px;
+        }
+
+        .info-box ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        .info-box li {
+            padding: 5px 0;
+            color: #333;
+        }
+
+        .info-box li:before {
+            content: "✓ ";
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>PDF Processor</h1>
+            <p>Merge PDFs or Split DocuSign Packets Intelligently</p>
+        </div>
+
+        <div class="main-content">
+            <div class="mode-selector">
+                <button class="mode-btn active" onclick="switchMode('merge')">
+                    📄 Merge PDFs
+                </button>
+                <button class="mode-btn" onclick="switchMode('split')">
+                    🔄 Split DocuSign Packet
+                </button>
+            </div>
+
+            <!-- PDF Merge Section -->
+            <div id="merge-section" class="section active">
+                <div class="upload-zone" onclick="document.getElementById('merge-files').click()" 
+                     ondrop="handleDrop(event, 'merge')" ondragover="handleDragOver(event)" 
+                     ondragleave="handleDragLeave(event)">
+                    <div class="upload-icon">📁</div>
+                    <div class="upload-text">Click to upload PDFs or drag & drop</div>
+                    <div class="upload-subtext">Select multiple PDF files to merge together</div>
+                </div>
+                <input type="file" id="merge-files" class="file-input" multiple accept=".pdf" 
+                       onchange="handleFileSelect(event, 'merge')">
+                
+                <div id="merge-file-list" class="file-list"></div>
+                
+                <button id="merge-btn" class="process-btn" onclick="mergePDFs()" disabled>
+                    <span>🔗 Merge PDFs</span>
+                </button>
+            </div>
+
+            <!-- DocuSign Split Section -->
+            <div id="split-section" class="section">
+                <div class="info-box">
+                    <h3>🎯 Smart DocuSign Packet Splitting</h3>
+                    <p><strong>Facility-Safe PDF will include:</strong></p>
+                    <ul>
+                        <li>Abuse/Neglect Policy</li>
+                        <li>Hepatitis B Vaccine Verification</li>
+                        <li>HIPAA Privacy Protection</li>
+                        <li>Workplace Violence Policies</li>
+                        <li>OSHA Standards & Safety</li>
+                        <li>Skills Checklists</li>
+                    </ul>
+                    <p style="margin-top: 15px;"><strong>Private PDF will include:</strong></p>
+                    <ul>
+                        <li>Contract Agreements</li>
+                        <li>Authorization Forms (with SSN)</li>
+                        <li>Workers' Compensation Forms</li>
+                        <li>W-9 Tax Forms</li>
+                    </ul>
+                </div>
+
+                <div class="upload-zone" onclick="document.getElementById('split-files').click()" 
+                     ondrop="handleDrop(event, 'split')" ondragover="handleDragOver(event)" 
+                     ondragleave="handleDragLeave(event)">
+                    <div class="upload-icon">📋</div>
+                    <div class="upload-text">Upload DocuSign Packet PDF</div>
+                    <div class="upload-subtext">Upload a complete DocuSign application packet</div>
+                </div>
+                <input type="file" id="split-files" class="file-input" accept=".pdf" 
+                       onchange="handleFileSelect(event, 'split')">
+                
+                <div id="split-file-list" class="file-list"></div>
+                
+                <button id="split-btn" class="process-btn" onclick="splitDocuSignPacket()" disabled>
+                    <span>✂️ Split DocuSign Packet</span>
+                </button>
+            </div>
+
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <div>Processing your PDF files...</div>
+            </div>
+
+            <div id="results" class="results">
+                <h3>✅ Processing Complete!</h3>
+                <div id="download-links"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let mergeFiles = [];
+        let splitFile = null;
+
+        function switchMode(mode) {
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            document.querySelectorAll('.section').forEach(section => {
+                section.classList.remove('active');
+            });
+            document.getElementById(mode + '-section').classList.add('active');
+
+            document.getElementById('results').classList.remove('show');
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.currentTarget.classList.remove('dragover');
+        }
+
+        function handleDrop(e, mode) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('dragover');
+            const files = Array.from(e.dataTransfer.files).filter(file => file.type === 'application/pdf');
+            
+            if (mode === 'merge') {
+                mergeFiles = [...mergeFiles, ...files];
+                updateFileList('merge');
+            } else if (mode === 'split' && files.length > 0) {
+                splitFile = files[0];
+                updateFileList('split');
+            }
+        }
+
+        function handleFileSelect(e, mode) {
+            const files = Array.from(e.target.files);
+            
+            if (mode === 'merge') {
+                mergeFiles = [...mergeFiles, ...files];
+                updateFileList('merge');
+            } else if (mode === 'split' && files.length > 0) {
+                splitFile = files[0];
+                updateFileList('split');
+            }
+        }
+
+        function updateFileList(mode) {
+            const listElement = document.getElementById(mode + '-file-list');
+            const btnElement = document.getElementById(mode + '-btn');
+            
+            if (mode === 'merge') {
+                if (mergeFiles.length === 0) {
+                    listElement.innerHTML = '';
+                    btnElement.disabled = true;
+                    return;
+                }
+
+                listElement.innerHTML = mergeFiles.map((file, index) => `
+                    <div class="file-item">
+                        <div class="file-info">
+                            <div class="file-name">${file.name}</div>
+                            <div class="file-size">${(file.size / 1024 / 1024).toFixed(2)} MB</div>
+                        </div>
+                        <button class="remove-btn" onclick="removeFile('merge', ${index})">Remove</button>
+                    </div>
+                `).join('');
+                
+                btnElement.disabled = mergeFiles.length < 2;
+            } else if (mode === 'split') {
+                if (!splitFile) {
+                    listElement.innerHTML = '';
+                    btnElement.disabled = true;
+                    return;
+                }
+
+                listElement.innerHTML = `
+                    <div class="file-item">
+                        <div class="file-info">
+                            <div class="file-name">${splitFile.name}</div>
+                            <div class="file-size">${(splitFile.size / 1024 / 1024).toFixed(2)} MB</div>
+                        </div>
+                        <button class="remove-btn" onclick="removeFile('split', 0)">Remove</button>
+                    </div>
+                `;
+                
+                btnElement.disabled = false;
+            }
+        }
+
+        function removeFile(mode, index) {
+            if (mode === 'merge') {
+                mergeFiles.splice(index, 1);
+                updateFileList('merge');
+            } else if (mode === 'split') {
+                splitFile = null;
+                updateFileList('split');
+            }
+        }
+
+        async function mergePDFs() {
+            if (mergeFiles.length < 2) return;
+
+            showLoading();
+            
+            try {
+                const PDFLib = window.PDFLib;
+                const mergedPdf = await PDFLib.PDFDocument.create();
+
+                for (const file of mergeFiles) {
+                    const fileBuffer = await file.arrayBuffer();
+                    const pdf = await PDFLib.PDFDocument.load(fileBuffer);
+                    const pages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+                    pages.forEach(page => mergedPdf.addPage(page));
+                }
+
+                const pdfBytes = await mergedPdf.save();
+                
+                showResults([{
+                    name: 'merged-document.pdf',
+                    description: 'All PDFs merged together',
+                    data: pdfBytes
+                }]);
+
+            } catch (error) {
+                showError('Error merging PDFs: ' + error.message);
+            }
+        }
+
+        async function splitDocuSignPacket() {
+            if (!splitFile) return;
+
+            showLoading();
+            
+            try {
+                const PDFLib = window.PDFLib;
+                const fileBuffer = await splitFile.arrayBuffer();
+                const sourcePdf = await PDFLib.PDFDocument.load(fileBuffer);
+                const totalPages = sourcePdf.getPageCount();
+
+                const employeeName = await extractEmployeeName(sourcePdf);
+                const facilityPages = await identifyFacilityPages(sourcePdf, totalPages);
+                
+                const facilityPdf = await PDFLib.PDFDocument.create();
+                const facilityPageObjects = await facilityPdf.copyPages(sourcePdf, facilityPages);
+                facilityPageObjects.forEach(page => facilityPdf.addPage(page));
+
+                const privatePages = Array.from({length: totalPages}, (_, i) => i).filter(i => !facilityPages.includes(i));
+                const privatePdf = await PDFLib.PDFDocument.create();
+                const privatePageObjects = await privatePdf.copyPages(sourcePdf, privatePages);
+                privatePageObjects.forEach(page => privatePdf.addPage(page));
+
+                const facilityBytes = await facilityPdf.save();
+                const privateBytes = await privatePdf.save();
+
+                const baseName = employeeName || splitFile.name.replace('.pdf', '');
+                
+                showResults([
+                    {
+                        name: `${baseName} - Facility Safe PDF.pdf`,
+                        description: 'Safe to send to facilities (policies, procedures, skills)',
+                        data: facilityBytes
+                    },
+                    {
+                        name: `${baseName} - Private PDF.pdf`, 
+                        description: 'Keep private (contracts, personal info, SSN)',
+                        data: privateBytes
+                    }
+                ]);
+
+            } catch (error) {
+                showError('Error splitting DocuSign packet: ' + error.message);
+            }
+        }
+
+        async function extractEmployeeName(pdf) {
+            try {
+                const fileName = splitFile.name;
+                
+                const namePatterns = [
+                    /([A-Z][a-z]+ [A-Z][a-z]+)/g,
+                    /([A-Z][a-zA-Z]+ [A-Z][a-zA-Z]+)/g,
+                ];
+                
+                for (const pattern of namePatterns) {
+                    const matches = fileName.match(pattern);
+                    if (matches && matches[0]) {
+                        const potentialName = matches[0];
+                        if (potentialName.length > 3 && potentialName.includes(' ')) {
+                            return potentialName;
+                        }
+                    }
+                }
+                
+                return null;
+                
+            } catch (error) {
+                console.error('Error extracting employee name:', error);
+                return null;
+            }
+        }
+
+        async function identifyFacilityPages(pdf, totalPages) {
+            if (totalPages >= 25) {
+                return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+            } else if (totalPages >= 20) {
+                return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+            } else {
+                const facilityPageCount = Math.floor(totalPages * 0.5);
+                return Array.from({length: facilityPageCount}, (_, i) => i);
+            }
+        }
+
+        function showLoading() {
+            document.getElementById('loading').classList.add('show');
+            document.getElementById('results').classList.remove('show');
+        }
+
+        function showResults(files) {
+            document.getElementById('loading').classList.remove('show');
+            
+            const downloadLinks = document.getElementById('download-links');
+            downloadLinks.innerHTML = files.map(file => `
+                <div style="margin: 15px 0; padding: 15px; background: white; border-radius: 10px; border: 1px solid #dee2e6;">
+                    <h4 style="margin-bottom: 5px; color: #333;">${file.name}</h4>
+                    <p style="color: #666; margin-bottom: 10px; font-size: 0.9rem;">${file.description}</p>
+                    <button class="download-btn" onclick="downloadFileData('${file.name}', '${file.description}')">
+                        📥 Download ${file.name}
+                    </button>
+                </div>
+            `).join('');
+            
+            window.fileData = files;
+            document.getElementById('results').classList.add('show');
+        }
+
+        function downloadFileData(fileName, description) {
+            const file = window.fileData.find(f => f.name === fileName);
+            if (file) {
+                downloadFile(file.data, fileName);
+            }
+        }
+
+        function downloadFile(data, filename) {
+            const blob = new Blob([data], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function showError(message) {
+            document.getElementById('loading').classList.remove('show');
+            
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-error';
+            alertDiv.innerHTML = `❌ ${message}`;
+            
+            document.querySelector('.main-content').appendChild(alertDiv);
+            
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
